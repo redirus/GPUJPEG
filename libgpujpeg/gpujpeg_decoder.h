@@ -138,7 +138,7 @@ gpujpeg_decoder_output_set_custom_cuda(struct gpujpeg_decoder_output* output, ui
  * @return decoder structure if succeeds, otherwise NULL
  */
 GPUJPEG_API struct gpujpeg_decoder*
-gpujpeg_decoder_create(cudaStream_t * stream);
+gpujpeg_decoder_create(cudaStream_t * stream, struct gpujpeg_parameters* param);
 
 /**
  * Init JPEG decoder for specific image size
@@ -161,6 +161,18 @@ gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_parameters*
  */
 GPUJPEG_API int
 gpujpeg_decoder_get_image_info(uint8_t* image, int image_size, struct gpujpeg_image_parameters * param_image);
+
+/**
+ * Decompress image by decoder
+ *
+ * @param decoder  Decoder structure
+ * @param image  Source image data
+ * @param image_size  Source image data size
+ * @param device_id  GPU id, usually 0-7
+ * @return NULL if fails, otherwise nonzero
+ */
+GPUJPEG_API uint8_t*
+rocs_gpujpeg_decode(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size, int device_id);
 
 /**
  * Decompress image by decoder

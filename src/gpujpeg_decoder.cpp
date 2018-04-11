@@ -88,7 +88,7 @@ gpujpeg_decoder_output_set_custom_cuda(struct gpujpeg_decoder_output* output, ui
 
 /** Documented at declaration */
 struct gpujpeg_decoder*
-gpujpeg_decoder_create(cudaStream_t * stream)
+gpujpeg_decoder_create(cudaStream_t * stream, struct gpujpeg_parameters* param)
 {
     struct gpujpeg_decoder* decoder = (struct gpujpeg_decoder*) malloc(sizeof(struct gpujpeg_decoder));
     if ( decoder == NULL )
@@ -108,6 +108,8 @@ gpujpeg_decoder_create(cudaStream_t * stream)
 
     int result = 1;
 
+    // To do: Check
+    cudaSetDevice(param->device_id);
     // Create reader
     decoder->reader = gpujpeg_reader_create();
     if ( decoder->reader == NULL )
@@ -136,7 +138,9 @@ gpujpeg_decoder_create(cudaStream_t * stream)
     decoder->stream = stream;
     if (decoder->stream == NULL) {
         decoder->allocatedStream = (cudaStream_t *) malloc(sizeof(cudaStream_t));
-        if (cudaSuccess != cudaStreamCreate(decoder->allocatedStream)) {
+        // if (cudaSuccess != cudaStreamCreate(decoder->allocatedStream)) {
+        // To do: Check
+        if (cudaSuccess != cudaStreamCreateWithFlags(decoder->allocatedStream, cudaStreamNonBlocking)) {
             result = 0;
         }
         decoder->stream = decoder->allocatedStream;
@@ -146,6 +150,8 @@ gpujpeg_decoder_create(cudaStream_t * stream)
         gpujpeg_decoder_destroy(decoder);
         return NULL;
     }
+
+    decoder->device_id = param->device_id;
 
     return decoder;
 }
@@ -175,7 +181,8 @@ gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_parameters*
 
     // For now we can't reinitialize decoder, we can only do first initialization
     if ( coder->param_image.width != 0 || coder->param_image.height != 0 || coder->param_image.comp_count != 0 ) {
-        fprintf(stderr, "[GPUJPEG] [Error] Can't reinitialize decoder, implement if needed!\n");
+        // To do: Check
+        // fprintf(stderr, "[GPUJPEG] [Error] Can't reinitialize decoder, implement if needed!\n");
         return -1;
     }
 
@@ -194,6 +201,94 @@ gpujpeg_decoder_init(struct gpujpeg_decoder* decoder, struct gpujpeg_parameters*
     }
 
     return 0;
+}
+
+uint8_t*
+rocs_gpujpeg_decode(struct gpujpeg_decoder* decoder, uint8_t* image, int image_size, int device_id)
+{
+    cudaSetDevice(device_id);
+
+    // Get coder
+    struct gpujpeg_coder* coder = &decoder->coder;
+
+    // Start copying compressed data to device memory
+    decoder->data_compressed = image;
+    decoder->data_compressed_size = image_size;
+    if (decoder->data_compressed_size > coder->data_compressed_allocated_size) {
+        if (coder->d_data_compressed != NULL) {
+            cudaFree(coder->d_data_compressed);
+            coder->d_data_compressed = NULL;
+        }
+        cudaMalloc((void**)&coder->d_data_compressed, decoder->data_compressed_size * sizeof(uint8_t));
+        gpujpeg_cuda_check_error("Coder data compressed device allocation", return NULL);
+        coder->data_compressed_allocated_size = decoder->data_compressed_size;
+    }
+    cudaMemcpyAsync(coder->d_data_compressed, decoder->data_compressed, decoder->data_compressed_size * sizeof(uint8_t), cudaMemcpyHostToDevice, *(decoder->stream));
+    gpujpeg_cuda_check_error("Decoder copy compressed data", return NULL);
+
+    // Read JPEG image data
+    if (0 != gpujpeg_reader_read_image(decoder, image, image_size)) {
+        fprintf(stderr, "[GPUJPEG] [Error] Decoder failed when decoding image data!\n");
+        return NULL;
+    }
+
+    // Perform huffman decoding on CPU (when there are not enough segments to saturate GPU)
+    if (coder->segment_count < 256) {
+        printf("Warning: Perform huffman decoding on CPU");
+        if (0 != gpujpeg_huffman_cpu_decoder_decode(decoder)) {
+            fprintf(stderr, "[GPUJPEG] [Error] Huffman decoder failed!\n");
+            return NULL;
+        }
+        cudaStreamSynchronize(*(decoder->stream));
+        // Copy quantized data to device memory from cpu memory
+        cudaMemcpyAsync(coder->d_data_quantized, coder->data_quantized, coder->data_size * sizeof(int16_t), cudaMemcpyHostToDevice, *(decoder->stream));
+        cudaStreamSynchronize(*(decoder->stream));
+        
+        GPUJPEG_CUSTOM_TIMER_START(decoder->in_gpu);
+    }
+    // Perform huffman decoding on GPU (when there are enough segments to saturate GPU)
+    else {
+        // printf("Perform huffman decoding on GPU!\n");
+
+        // Reset huffman output
+        cudaMemsetAsync(coder->d_data_quantized, 0, coder->data_size * sizeof(int16_t), *(decoder->stream));
+        
+        // Copy segments to device memory
+        cudaMemcpyAsync(coder->d_segment, coder->segment, decoder->segment_count * sizeof(struct gpujpeg_segment), cudaMemcpyHostToDevice, *(decoder->stream));
+        gpujpeg_cuda_check_error("Decoder copy compressed data", return NULL);
+        
+        // Zero output memory
+        cudaMemsetAsync(coder->d_data_quantized, 0, coder->data_size * sizeof(int16_t), *(decoder->stream));
+        
+        // Perform huffman decoding
+        if (0 != gpujpeg_huffman_gpu_decoder_decode(decoder)) {
+            fprintf(stderr, "[GPUJPEG] [Error] Huffman decoder on GPU failed!\n");
+            return NULL;
+        }
+    }
+
+    // Perform IDCT and dequantization (own CUDA implementation)
+    if (0 != gpujpeg_idct_gpu(decoder)) {
+        return NULL;
+    }
+
+    // Use internal CUDA buffer as decoding destination
+    coder->d_data_raw = coder->d_data_raw_allocated;
+    
+    // Preprocessing
+    if (0 != gpujpeg_preprocessor_decode(&decoder->coder, *(decoder->stream))) {
+        return NULL;
+    }
+   
+    // Wait for async operations before copying from the device
+    cudaStreamSynchronize(*(decoder->stream));
+
+    // Copy decompressed image to host memory
+    //cudaMemcpy(coder->data_raw, coder->d_data_raw, coder->data_raw_size * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+
+    //cudaFreeHost(image);
+    return coder->d_data_raw;
+    //return output->data;
 }
 
 /** Documented at declaration */

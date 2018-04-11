@@ -751,6 +751,8 @@ gpujpeg_reader_read_image(struct gpujpeg_decoder* decoder, uint8_t* image, int i
             // Baseline
             if ( gpujpeg_reader_read_sof0(&decoder->reader->param, &decoder->reader->param_image, &image) != 0 )
                 return -1;
+            decoder->coder.param_image.width=decoder->reader->param_image.width;
+            decoder->coder.param_image.height=decoder->reader->param_image.height;
             break;
         case GPUJPEG_MARKER_SOF1:
             // Extended sequential with Huffman coder

@@ -77,6 +77,8 @@ print_help()
 int
 main(int argc, char *argv[])
 {
+    return 0;
+    /*
     // Default coder parameters
     struct gpujpeg_parameters param;
     gpujpeg_set_default_parameters(&param);
@@ -406,7 +408,8 @@ main(int argc, char *argv[])
             // Load image
             int image_size = gpujpeg_image_calculate_size(&param_image);
             uint8_t* image = NULL;
-            if ( gpujpeg_image_load_from_file(input, &image, &image_size) != 0 ) {
+            // To do: Remove
+            if ( gpujpeg_image_load_from_file(input, &image, &image_size, 0) != 0 ) {
                 fprintf(stderr, "Failed to load image [%s]!\n", argv[index]);
                 return -1;
             }
@@ -559,7 +562,8 @@ main(int argc, char *argv[])
             // Load image
             int image_size = 0;
             uint8_t* image = NULL;
-            if ( gpujpeg_image_load_from_file(input, &image, &image_size) != 0 ) {
+            // To do: Remove
+            if ( gpujpeg_image_load_from_file(input, &image, &image_size, 0) != 0 ) {
                 fprintf(stderr, "Failed to load image [%s]!\n", argv[index]);
                 return -1;
             }
@@ -649,4 +653,5 @@ main(int argc, char *argv[])
     }
 
     return 0;
+    */
 }

@@ -57,6 +57,8 @@ struct gpujpeg_decoder
     // Current segment count for decoded image
     int segment_count;
 
+    int device_id;
+    
     // Current data compressed for decoded image
     uint8_t * data_compressed;
     

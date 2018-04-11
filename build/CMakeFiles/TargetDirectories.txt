@@ -1,2 +1,0 @@
-/home/yiyuan/rocs-dev/GPUJPEG/build/CMakeFiles/gpujpeg.dir
-/home/yiyuan/rocs-dev/GPUJPEG/build/CMakeFiles/tester.dir

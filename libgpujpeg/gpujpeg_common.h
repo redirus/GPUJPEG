@@ -133,6 +133,8 @@ struct gpujpeg_parameters
 
     // Encoder quality level (0-100)
     int quality;
+    
+    int device_id;
 
     // Restart interval (0 means that restart interval is disabled and CPU huffman coder is used)
     int restart_interval;
@@ -495,7 +497,7 @@ gpujpeg_image_calculate_size(struct gpujpeg_image_parameters* param);
  * @return 0 if succeeds, otherwise nonzero
  */
 GPUJPEG_API int
-gpujpeg_image_load_from_file(const char* filename, uint8_t** image, int* image_size);
+gpujpeg_image_load_from_file(const char* filename, uint8_t** image, int* image_size, int device_id);
 
 /**
  * Save RGB image to file

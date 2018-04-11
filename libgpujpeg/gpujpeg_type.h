@@ -76,6 +76,7 @@ enum gpujpeg_color_space {
  *
  * @param color_space
  */
+/*
 static const char*
 gpujpeg_color_space_get_name(enum gpujpeg_color_space color_space)
 {
@@ -96,7 +97,7 @@ gpujpeg_color_space_get_name(enum gpujpeg_color_space color_space)
         return "Unknown";
     }
 }
-
+*/
 /**
  * Pixel format for input/output image data.
  */

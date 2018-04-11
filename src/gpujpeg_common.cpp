@@ -921,8 +921,9 @@ gpujpeg_image_calculate_size(struct gpujpeg_image_parameters* param)
 
 /** Documented at declaration */
 int
-gpujpeg_image_load_from_file(const char* filename, uint8_t** image, int* image_size)
+gpujpeg_image_load_from_file(const char* filename, uint8_t** image, int* image_size, int device_id)
 {
+    cudaSetDevice(device_id);
     FILE* file;
     file = fopen(filename, "rb");
     if ( !file ) {
@@ -936,15 +937,16 @@ gpujpeg_image_load_from_file(const char* filename, uint8_t** image, int* image_s
         rewind(file);
     }
 
-    uint8_t* data = NULL;
-    cudaMallocHost((void**)&data, *image_size * sizeof(uint8_t));
-    if ( *image_size != fread(data, sizeof(uint8_t), *image_size, file) ) {
+    //uint8_t* data = NULL;
+    //cudaMallocHost((void**)&data, *image_size * sizeof(uint8_t));
+    //if ( *image_size != fread(data, sizeof(uint8_t), *image_size, file) ) {
+    if ( *image_size != fread(*image, sizeof(uint8_t), *image_size, file) ) {
         fprintf(stderr, "[GPUJPEG] [Error] Failed to load image data [%d bytes] from file %s!\n", *image_size, filename);
         return -1;
     }
     fclose(file);
 
-    *image = data;
+    //*image = data;
 
     return 0;
 }
@@ -985,7 +987,10 @@ gpujpeg_image_range_info(const char* filename, int width, int height, enum gpujp
     // Load image
     int image_size = 0;
     uint8_t* image = NULL;
-    if ( gpujpeg_image_load_from_file(filename, &image, &image_size) != 0 ) {
+    //if ( gpujpeg_image_load_from_file(filename, &image, &image_size) != 0 ) {
+    // To do: Fix 0
+    if ( gpujpeg_image_load_from_file(filename, &image, &image_size, 0) != 0 ) {
+
         fprintf(stderr, "[GPUJPEG] [Error] Failed to load image [%s]!\n", filename);
         return;
     }
@@ -1053,7 +1058,9 @@ gpujpeg_image_convert(const char* input, const char* output, struct gpujpeg_imag
     // Load image
     int image_size = gpujpeg_image_calculate_size(&param_image_from);
     uint8_t* image = NULL;
-    if ( gpujpeg_image_load_from_file(input, &image, &image_size) != 0 ) {
+    // To do: Fix 0
+    // if ( gpujpeg_image_load_from_file(input, &image, &image_size) != 0 ) {
+    if ( gpujpeg_image_load_from_file(input, &image, &image_size, 0) != 0 ) {
         fprintf(stderr, "[GPUJPEG] [Error] Failed to load image [%s]!\n", input);
         return;
     }
