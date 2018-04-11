@@ -1,0 +1,1 @@
+/usr/bin/c++       CMakeFiles/tester.dir/src/main.c.o  -o tester -rdynamic /usr/local/cuda/lib64/libcudart.so libgpujpeg.so /usr/local/cuda/lib64/libcudart.so -Wl,-rpath,/usr/local/cuda/lib64:/home/yiyuan/rocs-dev/GPUJPEG/build 
