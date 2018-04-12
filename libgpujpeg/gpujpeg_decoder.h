@@ -34,6 +34,17 @@
 #include <libgpujpeg/gpujpeg_common.h>
 #include <libgpujpeg/gpujpeg_type.h>
 
+#include <vector>
+#include <string>
+#include <utility>
+#include <opencv2/gpu/gpu.hpp>
+#include <opencv2/gpu/gpumat.hpp>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/imgproc/imgproc.hpp>
+using namespace std;
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -83,7 +94,11 @@ struct gpujpeg_decoder_output
     // OpenGL texture
     struct gpujpeg_opengl_texture* texture;
 };
-
+cv::gpu::GpuMat GIDLReadImageToCVGpuMat(const string& filename, int decoder_index, vector<pair<string, vector<float> > > op);
+bool GIDL_Init(int device_id, int restart_interval, int decoder_num, bool is_color);
+cv::gpu::GpuMat ImageRotate(cv::gpu::GpuMat &cv_gpu_img);
+cv::gpu::GpuMat ImageResize(cv::gpu::GpuMat cv_gpu_img, int height, int width);
+cv::gpu::GpuMat ImageCrop(cv::gpu::GpuMat &cv_gpu_img, int x, int y, int width, int height);
 /**
  * Set default parameters to decoder output structure
  *

@@ -16,7 +16,19 @@ make -j
 
 ## How to use
 
-To do
+First Call ReadImageGpuInit, then call ReadImageToCVGpuMat to execute image operation
+
+Example:
+<pre><code>
+#include "libgpujpeg/gpujpeg.h"
+int main(){
+    // only once
+    ReadImageGpuInit(0, 5, 32, true);
+    vector<pair<string, vector<float> > > v;
+    cv::gpu::GpuMat cv_gpu_image = ReadImageToCVGpuMat("input.jpg", 31, v);
+}
+</code></pre>
+
 ## Useful notes
 
 The jpegtran tool is used to set restart interval to speed up JPEG image decoding.

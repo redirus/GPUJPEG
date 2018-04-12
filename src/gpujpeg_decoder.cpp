@@ -36,6 +36,152 @@
 #include "gpujpeg_huffman_gpu_decoder.h"
 #include <libgpujpeg/gpujpeg_util.h>
 
+
+struct gpujpeg_decoder **d_ptr;
+uint8_t** i_ptr;
+bool GIDL_Init(int device_id, int restart_interval, int decoder_num, bool is_color)
+{
+    int image_num = decoder_num;
+    d_ptr = (struct gpujpeg_decoder **)malloc(decoder_num*sizeof(struct gpujpeg_decoder *));
+    i_ptr = (uint8_t**)malloc(image_num*sizeof(uint8_t*));
+
+    int flags = 0;
+    if(gpujpeg_init_device(device_id, flags)){
+        return false;
+    }
+    struct gpujpeg_parameters param;
+    gpujpeg_set_default_parameters(&param);
+    param.restart_interval = restart_interval;
+    param.interleaved = 1;
+    param.device_id = device_id;
+
+    struct gpujpeg_image_parameters param_image;
+    gpujpeg_image_set_default_parameters(&param_image);
+    // To do: Config
+    param_image.width = 1600;
+    param_image.height = 1600;
+    for(int i=0;i<image_num;i++){
+        cudaMallocHost((void**)(&(i_ptr[i])), 30000000 * sizeof(uint8_t));
+    }
+    if(is_color){ 
+        param_image.comp_count = 3;
+    }
+    else{
+        param_image.comp_count = 1;
+    }
+    for(int i=0;i<decoder_num;i++){
+        d_ptr[i] = gpujpeg_decoder_create(NULL, &param);
+        if(d_ptr[i] == NULL){
+            return false;
+        }
+        struct gpujpeg_coder* coder;
+        gpujpeg_decoder_init(d_ptr[i], &param, &param_image);
+        coder = &(d_ptr[i]->coder);
+        // Create buffers if not already created
+        if (coder->data_raw == NULL) {
+            if (cudaSuccess != cudaMallocHost((void**)&coder->data_raw, coder->data_raw_size * sizeof(uint8_t))) {
+                return false;
+            }
+        }
+        if (coder->d_data_raw_allocated == NULL) {
+            if (cudaSuccess != cudaMalloc((void**)&coder->d_data_raw_allocated, coder->data_raw_size * sizeof(uint8_t))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+cv::gpu::GpuMat GIDL_ReadImageToCVGpuMat(const string& filename, int decoder_index, vector<pair<string, vector<float> > > op){
+    
+    struct gpujpeg_decoder* decoder = d_ptr[decoder_index];
+    cv::gpu::GpuMat cv_img;
+    int device_id = decoder->device_id;
+    int image_size = 0;
+    uint8_t* image = i_ptr[decoder_index];
+    
+    if ( gpujpeg_image_load_from_file(filename.c_str(), &image, &image_size, device_id) != 0 ){
+        return cv_img;
+    }
+    
+    uint8_t* decode_output = rocs_gpujpeg_decode(decoder, image, image_size, device_id);
+    if(decode_output == NULL ){
+        return cv_img;
+    }
+
+    cv::gpu::setDevice(device_id);
+    cv::gpu::GpuMat cv_gpu_img(decoder->coder.param_image.height, decoder->coder.param_image.width, CV_8UC3, (void*)decode_output);
+
+    std::string operation;
+    std::vector<float> param;
+    std::vector<pair<string, vector<float> > >::iterator op_iter;
+    std::vector<float>::iterator p_iter;
+    for(op_iter=op.begin();op_iter!=op.end();op_iter++){
+        operation = op_iter->first;
+        param = op_iter->second;
+        p_iter = param.begin();
+        if(operation=="rotate"){
+            cv_gpu_img = ImageRotate(cv_gpu_img);
+        }
+        else if(operation=="resize"){
+            float height = *p_iter;
+            p_iter++;
+            float width = *p_iter;
+            cv_gpu_img = ImageResize(cv_gpu_img, (int)height, (int)width);
+        }
+        else if(operation=="crop"){
+            float x = *p_iter;
+            p_iter++;
+            float y = *p_iter;
+            p_iter++;
+            float width = *p_iter;
+            p_iter++;
+            float height = *p_iter;
+            cv_gpu_img = ImageCrop(cv_gpu_img, (int)x, (int)y, (int)width, (int)height);
+        }    
+        else{
+            return cv_gpu_img;
+        }
+    }    
+    return cv_gpu_img;
+}
+cv::gpu::GpuMat ImageRotate(cv::gpu::GpuMat cv_gpu_img){
+    //cv::gpu::setDevice(device_id);
+    cv::gpu::GpuMat cv_rotate_img;
+    //cv::gpu::rotate(cv_gpu_img, cv_rotate_img, cv::Size(cv_gpu_img.cols, cv_gpu_img.rows));
+    return cv_rotate_img;
+}
+cv::gpu::GpuMat ImageResize(cv::gpu::GpuMat cv_gpu_img, int height, int width){
+    //cv::gpu::setDevice(device_id);
+    cv::gpu::GpuMat cv_resize_img;
+    if (height > 0 && width > 0) {
+        int new_width = width;
+        int new_height = height;
+        if (height == 1 || width == 1) {
+            float length = height > width ? height : width;
+            if (cv_gpu_img.rows < cv_gpu_img.cols) {
+                float scale = length / cv_gpu_img.rows;
+                new_width = scale * cv_gpu_img.cols;
+                new_height = length;
+            }
+            else {
+                float scale = length / cv_gpu_img.cols;
+                new_width = length;
+                new_height = scale * cv_gpu_img.rows;
+            }
+        }
+        cv::gpu::resize(cv_gpu_img, cv_resize_img, cv::Size(new_width, new_height));
+    }
+    return cv_resize_img;
+}
+cv::gpu::GpuMat ImageCrop(cv::gpu::GpuMat cv_gpu_img, int x, int y, int width, int height){
+    //cv::gpu::setDevice(device_id);
+    cv::gpu::GpuMat cv_crop_img;
+    // Setup a rectangle to define your region of interest
+    cv::Rect myROI(x, y, width, height);
+    cv_crop_img = cv_gpu_img(myROI);
+    return cv_crop_img;
+}
+
 /** Documented at declaration */
 void
 gpujpeg_decoder_output_set_default(struct gpujpeg_decoder_output* output)

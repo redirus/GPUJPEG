@@ -12,6 +12,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 find_package(CUDA)
 message(STATUS "CUDA: ${CUDA_VERSION}")
 
+# Find OpenCV
+find_package(OpenCV)
+message(STATUS "OpenCV: ${OpenCV_VERSION}")
+
 # Find OpenGL, GLEW and GLUT
 find_package(OpenGL)
 find_package(GLEW)
@@ -62,15 +66,20 @@ endif()
 # GPUJPEG library
 file(GLOB H_FILES libgpujpeg/*.h)
 file(GLOB CPP_FILES src/*.cpp src/*.cu)
+include_directories(/usr/local/opencv-2.4.13/include/)
 cuda_add_library(gpujpeg SHARED ${H_FILES} ${CPP_FILES})
 if(GPUJPEG_OPENGL_ENABLED)
     target_link_libraries(gpujpeg ${GPUJPEG_OPENGL_LIBRARIES})
+include_directories(${OpenCV}/include/)
+
+target_link_libraries(gpujpeg, opencv)
 endif()
 
+
 # GPUJPEG tester application
-file(GLOB C_FILES src/main.c)
-cuda_add_executable(tester ${C_FILES})
-target_link_libraries(tester gpujpeg)
+#file(GLOB C_FILES src/main.c)
+#cuda_add_executable(tester ${C_FILES})
+#target_link_libraries(tester gpujpeg)
 
 # When OpenGL was found, include OpenGL executables
 if(GPUJPEG_OPENGL_ENABLED)
