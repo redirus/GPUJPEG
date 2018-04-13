@@ -23,9 +23,8 @@ Example:
 #include "libgpujpeg/gpujpeg.h"
 int main(){
     // only once
-    ReadImageGpuInit(0, 5, 32, true);
-    vector<pair<string, vector<float> > > v;
-    cv::gpu::GpuMat cv_gpu_image = ReadImageToCVGpuMat("input.jpg", 31, v);
+    GIDL_ReadImageGpuInit(0, 5, 32, true);
+    cv::gpu::GpuMat cv_gpu_image = GIDL_ReadImageToCVGpuMat("input.jpg", 31, v);
 }
 </code></pre>
 
